@@ -1,0 +1,14 @@
+{
+  "name": "서원대학교 규정집",
+  "short_name": "서원대 규정집",
+  "description": "서원대학교 규정 검색, 위임조항 및 동일내용 검증, 상위법 비교",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f4f6",
+  "theme_color": "#0f766e",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
