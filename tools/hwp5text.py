@@ -139,7 +139,8 @@ def _render_table(t):
     두 줄 이상인 표(별표 등)는 행×열 격자로 펼친다. 빈 칸과 병합으로 가려진 칸도 빈 문자열로
     자리를 지켜 모든 행의 칸 수가 같게 한다(병합된 내용은 첫 칸에만 한 번 쓴다).
     한 줄짜리 표는 대개 머리말·제목 상자라서 글자 있는 칸만 잇는다(수집기가 머리줄을 지울 수 있게)."""
-    cells = {k: ' '.join(x.strip() for x in v if x.strip()) for k, v in t['cells'].items()}
+    # 칸 안의 줄바꿈은 공백으로 바꾼다(한 칸이 여러 줄로 쪼개지면 표 한 행이 여러 줄로 갈라진다)
+    cells = {k: ' '.join(x.strip() for x in v if x.strip()).replace('\r', '').replace('\n', ' ') for k, v in t['cells'].items()}
     if not any(cells.values()):
         return []
     # 크기는 표 머리(TABLE)의 행·열 수를 쓰고, 칸 주소가 그보다 크면 늘린다(병합 수는 크기 계산에 쓰지 않음).

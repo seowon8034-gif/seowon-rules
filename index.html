@@ -251,6 +251,12 @@
   .addenda .unit h4 { font-size: 13px; color: var(--sub); }
   .addenda .unit .body { font-size: 14px; line-height: 1.7; white-space: pre-wrap; margin-top: 4px; }
   .addenda .unit.flash { animation: flash 1.6s ease-out; }
+  /* 별표 등 본문 속 표(' | '로 이은 줄)를 그린 것. 휴대폰에서는 표만 가로로 밀어 본다. */
+  .rtbl-wrap { overflow-x: auto; margin: 6px 0 10px; white-space: normal; -webkit-overflow-scrolling: touch; }
+  .rtbl { border-collapse: collapse; font-size: 13px; line-height: 1.5; min-width: 100%; background: var(--card); }
+  .rtbl td { border: 1px solid #d1d5db; padding: 5px 7px; vertical-align: top; white-space: pre-wrap; word-break: keep-all; min-width: 3em; }
+  .rtbl tr:first-child td { background: #f3f4f6; font-weight: 700; }
+  .rtbl td:empty { background: #fafafa; }
 
   /* 하단 시트 */
   .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 60; display: none; }
@@ -1601,7 +1607,46 @@ function renderArticleBody(rule, art, matchers) {
     out += `<span class="${sp.cls}" ${sp.law != null ? `data-law="${sp.law}"` : ''} ${sp.rule ? `data-open="${esc(sp.rule)}"` : ''} ${sp.art ? `data-art="${esc(sp.art)}"` : ''} ${sp.tip ? `title="${esc(sp.tip)}"` : ''}>${hl(text.slice(sp.s, sp.e), matchers)}</span>`;
     pos = sp.e;
   }
-  return out + hl(text.slice(pos), matchers);
+  return tableize(out + hl(text.slice(pos), matchers));
+}
+
+// 본문 HTML에서 ' | '로 칸을 이은 줄이 두 줄 이상 이어지면 표로 바꾼다(수집기가 HWP 표를 이렇게 적는다).
+// 칸 안의 태그(법령 인용·검색 강조)가 칸 경계에 걸쳐 짝이 맞지 않으면 그 묶음은 글자 그대로 둔다.
+const TABLE_ROW_RE = /(^| )\|( |$)/;
+function tableize(html) {
+  const plain = l => l.replace(/<[^>]*>/g, '');
+  const lines = html.split('\n');
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    let j = i;
+    while (j < lines.length && TABLE_ROW_RE.test(plain(lines[j]))) j++;
+    const rows = j - i >= 2 ? lines.slice(i, j).map(splitCells) : null;
+    if (rows && rows.every(Boolean)) {
+      const n = Math.max(...rows.map(r => r.length));
+      const table = `<div class="rtbl-wrap"><table class="rtbl"><tbody>${rows.map(r =>
+        `<tr>${r.concat(Array(n - r.length).fill('')).map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+      // 표 앞뒤의 빈 줄은 표 여백이 대신하므로 하나씩 줄인다
+      if (out.length && out[out.length - 1].trim() === '') out.pop();
+      out.push(table);
+      if (j < lines.length && lines[j].trim() === '') j++;
+      i = j;
+      continue;
+    }
+    out.push(lines[i]);
+    i++;
+  }
+  // 표(div) 바로 뒤의 줄바꿈은 pre-wrap에서 빈 줄로 보이므로 붙여 쓴다
+  return out.join('\n').replace(/<\/div>\n/g, '</div>');
+}
+function splitCells(line) {
+  // 앞뒤 빈 칸: 본문 정리 때 줄 앞뒤 공백이 지워져 "| 2급 | 5명 |"처럼 남으므로 공백을 되살려 나눈다
+  let s = line;
+  if (/^\s*\|/.test(s)) s = ' ' + s.replace(/^\s*/, '');
+  if (/\|\s*$/.test(s)) s = s.replace(/\s*$/, '') + ' ';
+  const cells = s.split(' | ').map(c => c.trim());
+  const balanced = c => (c.match(/<[a-z][^>]*>/gi) || []).length === (c.match(/<\/[a-z]+>/gi) || []).length;
+  return cells.every(balanced) ? cells : null;
 }
 
 function articleTags(rule, art) {
@@ -1671,7 +1716,7 @@ function openRule(id, artKey, q) {
       }).join('')}
       ${rule.addendaUnits && rule.addendaUnits.length ? `<details class="addenda" id="addenda"><summary>부칙 (${rule.addendaUnits.length})</summary>${
         rule.addendaUnits.map(u => `<div class="unit" id="art-${esc(u.key)}"><h4>${esc(u.no)}${u.title ? ' (' + esc(u.title) + ')' : ''}</h4><div class="tags">${articleTags(rule, u)}</div><div class="body">${renderArticleBody(rule, u, matchers)}</div></div>`).join('')
-      }</details>` : rule.addenda ? `<details class="addenda"><summary>부칙</summary><pre>${hl(rule.addenda, matchers)}</pre></details>` : ''}
+      }</details>` : rule.addenda ? `<details class="addenda"><summary>부칙</summary><pre>${tableize(hl(rule.addenda, matchers))}</pre></details>` : ''}
       ${attachmentsHtml(rule)}
       ${!rule.articles.length ? '<div class="card" style="margin:12px"><p class="muted">조문을 인식하지 못했습니다. 원문 형식을 확인해 주세요.</p></div>' : ''}`;
   }
