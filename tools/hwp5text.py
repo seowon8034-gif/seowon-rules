@@ -103,10 +103,13 @@ def _section_lines(data):
             tables[-1]['rows'], tables[-1]['cols'] = struct.unpack_from('<HH', payload, 4)
             continue
         if tag == TAG_LIST_HEADER and tables and level == tables[-1]['level'] + 1:
-            # LIST_HEADER: nPara(2) prop(4) ... 셀 속성: col(2) row(2)
+            # LIST_HEADER: nPara(2) ?(2) prop(4) | 셀 속성: col(2) row(2) colspan(2) rowspan(2) ...
+            # 글자가 없는 칸도 자리를 남겨야 옆 칸이 밀리지 않으므로 여기서 칸을 등록한다.
+            # 병합으로 가려진 칸은 LIST_HEADER가 없으므로 격자에서 빈 칸으로 남는다.
             if len(payload) >= 12:
                 col, row = struct.unpack_from('<HH', payload, 8)
                 tables[-1]['cur'] = (row, col)
+                tables[-1]['cells'].setdefault((row, col), [])
             continue
         if tag == TAG_PARA_TEXT:
             t = _para_text(payload).rstrip('\r')
@@ -131,17 +134,25 @@ def _section_lines(data):
 
 
 def _render_table(t):
-    if not t['cells']:
+    """표를 행마다 ' | '로 이은 줄로 바꾼다.
+
+    두 줄 이상인 표(별표 등)는 행×열 격자로 펼친다. 빈 칸과 병합으로 가려진 칸도 빈 문자열로
+    자리를 지켜 모든 행의 칸 수가 같게 한다(병합된 내용은 첫 칸에만 한 번 쓴다).
+    한 줄짜리 표는 대개 머리말·제목 상자라서 글자 있는 칸만 잇는다(수집기가 머리줄을 지울 수 있게)."""
+    cells = {k: ' '.join(x.strip() for x in v if x.strip()) for k, v in t['cells'].items()}
+    if not any(cells.values()):
         return []
-    rows = {}
-    for (r, c), texts in t['cells'].items():
-        cell = ' '.join(x.strip() for x in texts if x.strip())
-        rows.setdefault(r, []).append((c, cell))
+    # 크기는 표 머리(TABLE)의 행·열 수를 쓰고, 칸 주소가 그보다 크면 늘린다(병합 수는 크기 계산에 쓰지 않음).
+    n_rows = max([t['rows']] + [r + 1 for r, _ in cells])
+    n_cols = max([t['cols']] + [c + 1 for _, c in cells])
+    grid = [[''] * n_cols for _ in range(n_rows)]
+    for (r, c), text in cells.items():
+        grid[r][c] = text
     out = ['']
-    for r in sorted(rows):
-        cells = [c for _, c in sorted(rows[r])]
-        if any(cells):
-            out.append(' | '.join(cells))
+    for row in grid:
+        if not any(row):
+            continue
+        out.append(' | '.join(row if n_rows > 1 else [x for x in row if x]))
     out.append('')
     return out
 
