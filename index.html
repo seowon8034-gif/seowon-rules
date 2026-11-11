@@ -1546,12 +1546,11 @@ $('#dupBody').addEventListener('click', e => {
 function attachmentsHtml(rule) {
   const list = rule.attachments || [];
   if (!list.length) return '';
-  const direct = list.some(a => a.url || a.down);
+  const direct = list.some(a => a.url);
   return `<details class="addenda" id="attachments" open><summary>규정 파일·별표 (${list.length})</summary>
     <div class="attach">${list.map((a, i) => {
       const icon = /별표/.test(a.name) ? '📊' : '📄';
       const ext = esc((a.name.match(/\.([a-z]+)$/i) || ['', ''])[1].toUpperCase());
-      if (a.down) return `<div class="att att-row"><a href="${esc(attachmentUrl(rule, a))}" target="_blank" rel="noopener">${icon} ${esc(a.label)} <span class="muted small">${ext} · 받기</span></a>${rule.url ? `<a class="muted small att-alt" href="${esc(rule.url)}" target="_blank" rel="noopener">원문</a>` : ''}</div>`;
       const href = a.url || rule.url;
       return href
         ? `<a class="att" href="${esc(href)}" target="_blank" rel="noopener">${icon} ${esc(a.label)} <span class="muted small">${ext}${a.url ? ' · 받기' : ' · 원문에서 받기'}</span></a>`
@@ -1559,19 +1558,6 @@ function attachmentsHtml(rule) {
     }).join('')}</div>
     <p class="muted small" style="margin-top:8px">${direct ? '누르면 서원대학교 규정집에서 HWP 파일을 받습니다. 별표·서식은 현행 규정(전문) 파일 끝에 들어 있습니다. 받아지지 않으면 머리말의 <b>원문 보기</b>(미리보기)를 누르세요.' : '누르면 서원대학교 규정집의 원문 화면이 열립니다.'} hwp 파일은 휴대폰에 한컴오피스 Viewer 앱이 있어야 열립니다.</p>
   </details>`;
-}
-
-// 규정관리시스템의 fileDown(seq, type)은 /lmxsrv/fileDown.srv에 FILE_SEQ·FILE_TYPE을 보낸다.
-// 휴대폰(특히 홈 화면에 추가한 앱)은 스크립트로 새 창에 보내는 양식을 막을 수 있어, 같은 값을 주소에 담은 링크로 연다.
-function attachmentUrl(rule, a) {
-  const code = (dataset && dataset.fileDown && dataset.fileDown.code) || '';
-  const path = (code.match(/action=['"]([^'"]*fileDown[^'"]*)['"]/) || [])[1] || '/lmxsrv/fileDown.srv';
-  let origin = 'https://www.seowon.ac.kr';
-  try { if (rule.url) origin = new URL(rule.url).origin; } catch (e) { /* 기본 주소 사용 */ }
-  const u = new URL(path, origin);
-  u.searchParams.set('FILE_SEQ', a.down.seq);
-  u.searchParams.set('FILE_TYPE', a.down.type);
-  return u.href;
 }
 
 let viewing = null;
